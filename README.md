@@ -1,4 +1,4 @@
-# Vehicle-Spawncode-Finder-Browser-Spawner
+# Vehicle-Spawncode-Finder
 Spawncode finder
 
 # Spawn Finder
