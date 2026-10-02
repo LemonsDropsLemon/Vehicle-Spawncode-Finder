@@ -132,7 +132,8 @@ spawnfinder/
 ## Security notes
 
 This resource has **no permission checks by default**: every player can open the menu, spawn vehicles and copy spawncodes to their clipboard. If this is no issue to you, ignore this
-Things to be aware of:
+
+### Things to be aware of:
 
 - Anyone who can open the menu can spawn any vehicle model available on the server. Spawning is client-side.
 - With `Config.OnlyShowFoldersWithVehicles = false`, the folder browser shows **every** folder and resource name on the server, scripts included (but only the folder names, nothng inside the folder, unless its a vehicle). Leave it `true` if you don't want players seeing your resource names.
