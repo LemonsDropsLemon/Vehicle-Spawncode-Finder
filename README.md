@@ -123,7 +123,7 @@ spawnfinder/
 
 ## Security notes
 
-This resource has **no permission checks by default**: every player can open the menu, spawn vehicles and save list files. That's fine for a private or development server, but on a public server you should restrict the "save" function in the config id recommend.
+This resource has **no permission checks by default**: every player can open the menu, spawn vehicles and save list files. That's fine for a private or development server, but on a public server id recommend you should restrict the "save" function in the config.
 
 Things to be aware of:
 
