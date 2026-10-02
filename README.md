@@ -155,21 +155,29 @@ This resource has **no permission checks by default**: every player can open the
 
 ---
 
-## Showcase
-Main Page
+# Showcase
+
+### Main Page
+
 <img width="774" height="841" alt="image" src="https://github.com/user-attachments/assets/7dd5dea2-65b2-48ca-b9f4-47b834ffe09d" />
 
-Inside Of A Pack
+### Inside Of A Pack
+
 <img width="769" height="823" alt="image" src="https://github.com/user-attachments/assets/4160b2ea-c512-41f0-a0e4-cf2cfb9a6202" />
 
-Pressing List Spawncodes Of Said Pack
+### Pressing List Spawncodes Of Said Pack
+
 <img width="784" height="845" alt="image" src="https://github.com/user-attachments/assets/7e7e90b9-e34a-4eb0-a153-ef6b5ad33e0b" />
 
-Pressing "List Everything" on the main page
+### Pressing "List Everything" on the main page
+
 <img width="785" height="846" alt="image" src="https://github.com/user-attachments/assets/800722af-c487-4379-ab8a-e321a5ba36a0" />
 
-Searching "Misc"
+### Searching "Misc"
+
 <img width="787" height="843" alt="image" src="https://github.com/user-attachments/assets/2fd50f90-272e-42c8-a8ea-50a5d6ef0053" />
+
+---
 
 ## Support
 
