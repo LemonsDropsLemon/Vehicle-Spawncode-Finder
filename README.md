@@ -137,7 +137,7 @@ This resource has **no permission checks by default**: every player can open the
 
 - Anyone who can open the menu can spawn any vehicle model available on the server. Spawning is client-side.
 - With `Config.OnlyShowFoldersWithVehicles = false`, the folder browser shows **every** folder and resource name on the server, scripts included (but only the folder names, nothng inside the folder, unless its a vehicle). Leave it `true` if you don't want players seeing your resource names.
-- The **Save** button lets players write `.txt` files into `exports/`.
+- The **Save** button IF enabled in config (which by default it isnt) lets players write `.txt` files into `exports/`.
 
 ---
 
