@@ -149,3 +149,5 @@ Things to be aware of:
 ## Support
 
 If you need ANY Help, little or large, join my discord and open a ticket, im happy to assit, and am open to bug reports! 
+
+https://discord.gg/pQqHBjwTE5
