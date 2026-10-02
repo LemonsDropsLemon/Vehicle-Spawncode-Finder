@@ -74,13 +74,21 @@ Everything is in `config.lua`:
 ```lua
 Config = {}
 
--- true  = the folder browser only shows folders/packs that contain vehicle metas
--- false = show every folder and resource on the server
+-- true  = the folder browser only shows folders/packs that contain vehicle metas (vehicles.meta with spawncodes)
+-- false = show every folder and resource on the server (however, still only spawns/shows those with vehicle.metas, because well, its a vehicle spawncode finder :]
 Config.OnlyShowFoldersWithVehicles = true
 
 -- Spawning from the menu
 Config.DeletePrevious  = true -- delete the last car spawned from this menu before spawning a new one
 Config.WarpIntoVehicle = true -- put you in the driver seat
+
+-- Saving results to exports/*.txt inside this resource
+-- false = the Save buttons are hidden AND the server ignores save requests (recommended for live servers)
+Config.EnableSave   = false
+Config.SaveCooldown = 10 -- seconds a player must wait between saves (only matters if EnableSave = true)
+
+-- Performance
+Config.IndexBudgetMs = 8          -- max milliseconds of server time per tick spent building the index (lower = gentler, slower first build)
 ```
 
 ---
@@ -123,8 +131,7 @@ spawnfinder/
 
 ## Security notes
 
-This resource has **no permission checks by default**: every player can open the menu, spawn vehicles and save list files. That's fine for a private or development server, but on a public server id recommend you should restrict the "save" function in the config.
-
+This resource has **no permission checks by default**: every player can open the menu, spawn vehicles and copy spawncodes to their clipboard. If this is no issue to you, ignore this
 Things to be aware of:
 
 - Anyone who can open the menu can spawn any vehicle model available on the server. Spawning is client-side.
