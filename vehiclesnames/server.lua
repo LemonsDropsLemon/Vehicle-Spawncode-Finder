@@ -110,6 +110,7 @@ end
 
 local function parseCodes(data)
     local codes = {}
+    if not data:find('CVehicleModelInfo__InitData', 1, true) then return codes end
     local block = data:match('<InitDatas>(.-)</InitDatas>')
     if not block then return codes end
     for model in block:gmatch('<[Mm]odelName>%s*([^<%s]+)%s*</[Mm]odelName>') do codes[#codes + 1] = model end
