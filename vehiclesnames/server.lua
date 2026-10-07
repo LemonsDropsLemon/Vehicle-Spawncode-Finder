@@ -40,24 +40,7 @@ end
 local function listMetas(absPath, resName)
     local ok, list = pcall(function() return exports[GetCurrentResourceName()]:listMetas(absPath) end)
     if ok and type(list) == 'table' then return list end
-
-    if not (io and io.popen) then return nil end
-    local cmd
-    if absPath:match('^%a:/') then
-        cmd = ('dir /s /b "%s\\*.meta" 2>nul'):format((absPath:gsub('/', '\\')))
-    else
-        cmd = ('find "%s" -type f -name "*.meta" 2>/dev/null'):format(absPath)
-    end
-    local ok2, h = pcall(io.popen, cmd)
-    if not ok2 or not h then return nil end
-    local out = {}
-    for line in h:lines() do
-        line = norm(line):gsub('\r', '')
-        local rel = under(line, absPath)
-        if rel and rel ~= '' then out[#out + 1] = rel end
-    end
-    h:close()
-    return out
+    return nil
 end
 
 local function globToPattern(g)
