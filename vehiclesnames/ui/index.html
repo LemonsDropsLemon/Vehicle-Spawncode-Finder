@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Spawn Finder</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Arial,sans-serif;color:#e8e8ee;display:none;height:100vh;background:transparent}
+#app{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:780px;max-width:95vw;height:82vh;background:#16181f;border:1px solid #2c3040;border-radius:10px;display:flex;flex-direction:column;box-shadow:0 10px 40px #000a}
+header{padding:14px 18px;border-bottom:1px solid #2c3040;display:flex;justify-content:space-between;align-items:center}
+h1{font-size:17px;margin:0}
+button{background:#2f6fed;color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:13px}
+button:hover{background:#4a82f2}button.ghost{background:#2a2e3b}button.ghost:hover{background:#383d4e}
+#crumbs{padding:10px 18px;font-size:13px;color:#9aa;border-bottom:1px solid #2c3040;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+#crumbs span.c{cursor:pointer;color:#6ea0ff}#crumbs span.c:hover{text-decoration:underline}
+#toolbar{padding:10px 18px;display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid #2c3040;align-items:center}
+#filter{flex:1;background:#0f1117;border:1px solid #2c3040;border-radius:6px;color:#e8e8ee;padding:8px 10px;font-size:13px;outline:none;min-width:160px}
+#filter:focus{border-color:#2f6fed}
+#main{flex:1;overflow:auto;padding:10px 18px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-radius:6px;cursor:pointer;user-select:none}
+.row:hover{background:#21242f}.row small{color:#889;margin-left:8px}
+.row .go{color:#6ea0ff;font-size:18px;margin-left:10px}
+.row .btns{display:flex;align-items:center}
+.group{margin-bottom:18px;background:#1b1e27;border:1px solid #2c3040;border-radius:8px;padding:10px 12px}
+.group h3{margin:0 0 2px;font-size:14px;color:#8fb4ff}
+.group .path{font-size:11px;color:#778;margin:0 0 8px;word-break:break-all}
+.group h3+.codes{margin-top:8px}
+.codes{columns:3;column-gap:16px;font-family:Consolas,monospace;font-size:13px}
+.code{display:flex;align-items:center;padding:2px 4px;border-radius:4px;break-inside:avoid}
+.code .name{flex:1;padding:1px 4px;border-radius:4px;cursor:pointer;overflow:hidden;text-overflow:ellipsis}
+.code .name:hover{background:#2f6fed}
+.sq{width:20px;height:20px;min-width:20px;padding:0;margin-right:8px;border-radius:4px;background:#2a2e3b;font-size:9px;line-height:20px;text-align:center}
+.sq:hover{background:#2faa5a}
+.count{color:#889;font-size:12px;margin:0 0 10px}
+.warn{color:#e8b04a;font-size:12px;margin:4px 0}.muted{color:#889;padding:20px;text-align:center}.err{color:#ff7b7b;padding:20px;text-align:center}
+#toast{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:#2f6fed;padding:6px 14px;border-radius:6px;font-size:13px;display:none}
+textarea{position:fixed;left:-999px}
+</style></head><body>
+<div id="app">
+  <header><h1>🚗 Spawn Finder</h1><button class="ghost" id="close">Close (Esc)</button></header>
+  <div id="crumbs"></div>
+  <div id="toolbar"></div>
+  <div id="main"></div>
+  <div id="toast"></div>
+</div>
+<textarea id="clip"></textarea>
+<script>
+const $=id=>document.getElementById(id);
+const post=(n,d={})=>fetch(`https://${GetParentResourceName()}/${n}`,{method:'POST',body:JSON.stringify(d)});
+const MAX_RENDER=600;
+let cur='', timer=null, lastBrowse=null, view='browse', ui={};
+let scanPath='', lastQ='', resumeQ='';
+let saveEnabled=false;
+let idx=null, idxBuf=null, idxLoading=false, idxVer=0;
+
+function el(tag,props={},kids=[]){const e=document.createElement(tag);Object.assign(e,props);kids.forEach(k=>e.append(k));return e}
+function toast(t){const T=$('toast');T.textContent=t;T.style.display='block';clearTimeout(T._t);T._t=setTimeout(()=>T.style.display='none',2200)}
+function copy(text){const c=$('clip');c.value=text;c.select();document.execCommand('copy');toast('Copied!')}
+
+let waiting=false,lastReq=null,tries=0;
+function arm(){
+  clearTimeout(timer);
+  timer=setTimeout(()=>{
+    if(lastReq&&tries<1){tries++;post(lastReq.n,lastReq.d);arm();return}
+    waiting=false;
+    $('main').replaceChildren(el('div',{className:'err',textContent:'No response from the server. Check the server console for [spawnfinder] errors.'}));
+  },8000);
+}
+function loading(msg){waiting=true;$('main').textContent=msg;arm()}
+function done(){waiting=false;clearTimeout(timer)}
+
+function requestIndex(force){
+  idxLoading=true;
+  if(force){idx=null;idxVer=0;}
+  post('index',{ver:idxVer,force:!!force});
+  if(view==='browse')refreshSearch();
+}
+function onChunk(d){
+  if(d.same){idxLoading=false;refreshSearch();return}
+  if(d.first)idxBuf=[];
+  (d.results||[]).forEach(r=>idxBuf.push(r));
+  if(d.last){idx=idxBuf;idxBuf=null;idxVer=d.ver;idxLoading=false;refreshSearch();}
+}
+
+const debounce=(f,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f(...a),ms)}};
+const tokensOf=v=>v.toLowerCase().split(/\s+/).filter(Boolean);
+const fileOf=(r,i)=>(r.files&&r.srcs&&r.files[r.srcs[i]-1])||'';
+
+function filterResults(results,tokens,prefix){
+  const lists=[];let count=0;
+  results.forEach(r=>{
+    if(prefix&&!(r.path===prefix||(r.path||'').startsWith(prefix+'/')))return;
+    const codes=[];
+    const h=tokens.length?(r._h||(r._h=r.codes.map((c,i)=>(c+' '+r.resource+' '+(r.path||'')+' '+fileOf(r,i)).toLowerCase()))):null;
+    r.codes.forEach((c,i)=>{
+      if(h&&!tokens.every(t=>h[i].includes(t)))return;
+      codes.push(c);
+    });
+    if(codes.length){lists.push([r,codes]);count+=codes.length}
+  });
+  return {lists,count};
+}
+
+function drawGroups(m,lists,{showPath,filtered}){
+  let rendered=0,capped=false;
+  for(const [r,codes] of lists){
+    if(rendered>=MAX_RENDER){capped=true;break}
+    const g=el('div',{className:'group'},[el('h3',{textContent:r.resource+'  ('+codes.length+(filtered?' / '+r.codes.length:'')+')'})]);
+    if(showPath&&r.path)g.append(el('div',{className:'path',textContent:r.path}));
+    const list=el('div',{className:'codes'});
+    codes.forEach(c=>{
+      if(rendered>=MAX_RENDER){capped=true;return}
+      rendered++;
+      const sq=el('button',{className:'sq',textContent:'▶',title:'Spawn '+c});sq.onclick=()=>post('spawn',{model:c});
+      const nm=el('span',{className:'name',textContent:c,title:'Click to copy'});nm.onclick=()=>copy(c);
+      list.append(el('div',{className:'code'},[sq,nm]));
+    });
+    g.append(list);m.append(g);
+  }
+  if(capped)m.append(el('div',{className:'muted',textContent:'Showing the first '+MAX_RENDER+' - refine your search to see more.'}));
+}
+
+const textFor=lists=>lists.map(([r,codes])=>'## '+r.resource+' ('+codes.length+')\n'+codes.join('\n')).join('\n\n')+'\n';
+
+function crumbs(path){
+  const c=$('crumbs');c.textContent='';
+  const root=el('span',{className:'c',textContent:'resources'});root.onclick=()=>go('');c.append(root);
+  let acc='';
+  path.split('/').filter(Boolean).forEach(p=>{
+    acc=acc?acc+'/'+p:p;const target=acc;
+    c.append(' / ');const s=el('span',{className:'c',textContent:p});s.onclick=()=>go(target);c.append(s);
+  });
+}
+function go(path){cur=path;view='browse';lastQ='';lastReq={n:'browse',d:{path}};tries=0;loading('Loading...');post('browse',{path})}
+function scan(path){view='scan';scanPath=path;lastQ='';lastReq={n:'scan',d:{path}};tries=0;loading('Scanning manifests...');post('scan',{path})}
+
+function renderBrowse(d){
+  done();view='browse';lastBrowse=d;cur=d.path;crumbs(cur);
+  const tb=$('toolbar');tb.textContent='';
+  const up=el('button',{className:'ghost',textContent:'⬆ Up'});up.onclick=()=>go(cur.split('/').slice(0,-1).join('/'));
+  const q=el('input',{id:'filter',placeholder:cur?'Search in '+cur+' ...':'Search all spawncodes, packs, file paths...'});
+  const ca=el('button',{textContent:'Copy all'}),sv=el('button',{className:'ghost',textContent:'💾 Save'});
+  const sc=el('button',{className:'ghost',textContent:cur?'List this folder':'List everything'});sc.onclick=()=>scan(cur);
+  const rs=el('button',{className:'ghost',textContent:'⟳',title:'Rescan all packs'});rs.onclick=()=>{requestIndex(true);toast('Rescanning all packs...')};
+  ca.style.display=sv.style.display='none';
+  if(cur)tb.append(up);tb.append(q,ca);if(saveEnabled)tb.append(sv);tb.append(sc,rs);
+  ui={q,ca,sv};
+  if(resumeQ){q.value=resumeQ;resumeQ=''}
+  q.oninput=debounce(()=>{lastQ=q.value;refreshSearch()},120);
+  refreshSearch();q.focus();
+}
+
+function refreshSearch(){
+  if(view!=='browse'||!ui.q||!lastBrowse)return;
+  const v=ui.q.value.trim(),m=$('main');
+  if(!v){ui.ca.style.display=ui.sv.style.display='none';drawFolders();return}
+  if(!idx){
+    ui.ca.style.display=ui.sv.style.display='none';
+    m.replaceChildren(el('div',{className:'muted',textContent:idxLoading?'Indexing vehicle packs... the first load can take a few seconds.':'The index is not loaded yet.'}));
+    return;
+  }
+  const {lists,count}=filterResults(idx,tokensOf(v),cur);
+  m.textContent='';
+  m.append(el('div',{className:'count',textContent:count+' spawncode'+(count==1?'':'s')+' in '+lists.length+' pack'+(lists.length==1?'':'s')+(cur?' (inside '+cur+')':'')}));
+  if(!lists.length)m.append(el('div',{className:'muted',textContent:'No matches.'}));
+  drawGroups(m,lists,{showPath:true,filtered:false});
+  ui.ca.style.display=ui.sv.style.display='';
+  ui.ca.textContent='Copy all ('+count+')';
+  ui.ca.onclick=()=>copy(lists.flatMap(([r,c])=>c).join('\n'));
+  ui.sv.onclick=()=>post('save',{label:(cur||'all')+'_'+v,text:'# Search "'+v+'"'+(cur?' in '+cur:'')+'\n\n'+textFor(lists)});
+}
+
+function drawFolders(){
+  const d=lastBrowse,m=$('main');m.textContent='';
+  if(!d.folders.length&&!d.resources.length){
+    m.append(el('div',{className:'muted',textContent:'Nothing here.'}));
+    return;
+  }
+  d.folders.forEach(f=>{
+    const sb=el('button',{className:'ghost',textContent:'List'});sb.onclick=e=>{e.stopPropagation();scan(f.path)};
+    const r=el('div',{className:'row'},[
+      el('span',{textContent:'📁 '+f.name},[el('small',{textContent:f.count+' resource'+(f.count==1?'':'s')})]),
+      el('span',{className:'btns'},[sb,el('span',{className:'go',textContent:'›'})])]);
+    r.onclick=()=>go(f.path);m.append(r);
+  });
+  d.resources.forEach(f=>{
+    const r=el('div',{className:'row',title:'Click to list spawncodes'},[
+      el('span',{textContent:'📦 '+f.name}),
+      el('span',{className:'btns'},[el('button',{textContent:'List spawncodes'})])]);
+    r.onclick=()=>scan(f.path);m.append(r);
+  });
+}
+
+function renderScan(d){
+  done();view='scan';crumbs(d.path);
+  const tb=$('toolbar');tb.textContent='';
+  const back=el('button',{className:'ghost',textContent:'⬅ Back'});back.onclick=()=>go(cur);
+  const q=el('input',{id:'filter',placeholder:'Search spawncode, pack, file path...'});
+  const ca=el('button',{textContent:'Copy all'});
+  const cc=el('button',{className:'ghost',textContent:'Copy comma list'});
+  const sv=el('button',{className:'ghost',textContent:'💾 Save'});
+  tb.append(back,q,ca,cc);if(saveEnabled)tb.append(sv);
+  const m=$('main');let lists=[];const shown=()=>lists.flatMap(([r,c])=>c);
+
+  function draw(){
+    const tokens=tokensOf(q.value);
+    const f=filterResults(d.results,tokens,'');
+    lists=f.lists;
+    m.textContent='';
+    if(tokens.length)m.append(el('div',{className:'count',textContent:f.count+' of '+d.total+' spawncodes in '+lists.length+' pack'+(lists.length==1?'':'s')}));
+    if(!lists.length)m.append(el('div',{className:'muted',textContent:d.results.length?'No matches.':'No vehicle metas with spawncodes found here.'}));
+    drawGroups(m,lists,{showPath:false,filtered:tokens.length>0});
+    ca.textContent='Copy all ('+f.count+')';
+    d.warnings.forEach(w=>m.append(el('div',{className:'warn',textContent:'⚠ '+w})));
+  }
+  ca.onclick=()=>copy(shown().join('\n'));
+  cc.onclick=()=>copy(shown().join(', '));
+  sv.onclick=()=>post('save',{label:d.path||'all',text:'# Spawncodes for: '+(d.path||'(everything)')+'\n\n'+textFor(lists)});
+  if(resumeQ){q.value=resumeQ;resumeQ=''}
+  q.oninput=debounce(()=>{lastQ=q.value;draw()},120);draw();q.focus();
+}
+
+window.addEventListener('message',e=>{
+  const m=e.data;
+  if(m.action==='open'){saveEnabled=!!m.save;document.body.style.display='block';const keep=lastQ;if(view==='scan')scan(scanPath);else go(cur);resumeQ=keep;lastQ=keep;requestIndex(false)}
+  else if(m.action==='close'){document.body.style.display='none'}
+  else if(m.action==='browse')renderBrowse(m.data);
+  else if(m.action==='scan')renderScan(m.data);
+  else if(m.action==='indexChunk')onChunk(m.data);
+  else if(m.action==='error'){done();idxLoading=false;$('main').replaceChildren(el('div',{className:'err',textContent:'Server error: '+m.msg}))}
+  else if(m.action==='progress'){if(waiting){$('main').textContent='Indexing vehicle packs... '+m.done+'/'+m.total+(m.name?' - '+m.name:'');arm()}}
+  else if(m.action==='saved')toast('Saved to '+m.file);
+  else if(m.action==='toast')toast(m.msg);
+});
+$('close').onclick=()=>post('close');
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  const a=document.activeElement;
+  if(a&&a.id==='filter'&&a.value){a.value='';a.oninput&&a.oninput();return}
+  post('close');
+});
+</script></body></html>
